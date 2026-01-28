@@ -480,7 +480,7 @@
                     const croppedContext = croppedCanvas.getContext('2d');
                     croppedContext.drawImage(canvas, 0, 0);
 
-                    // Run OCR
+                    // Run OCR with better configuration
                     const result = await Tesseract.recognize(
                         croppedCanvas,
                         'hun+eng',
@@ -489,11 +489,68 @@
                                 if (m.status === 'recognizing text') {
                                     statusMessage.textContent = `OCR: ${file.name} - ${Math.round(m.progress * 100)}%`;
                                 }
-                            }
+                            },
+                            // Better OCR settings
+                            tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+                            preserve_interword_spaces: '1',
                         }
                     );
 
-                    return result.data.text;
+                    // Get text and ensure proper encoding
+                    let extractedText = result.data.text;
+                    
+                    // Check if we got weird encoding (UTF-16 as UTF-8)
+                    if (extractedText.includes('昀') || extractedText.includes('圀') || extractedText.includes('匀')) {
+                        // Text was incorrectly encoded - try to fix it or re-process
+                        statusMessage.textContent = `Retrying OCR with different settings...`;
+                        
+                        // Try with a higher quality render
+                        const scale2 = 3.0;
+                        const viewport2 = page.getViewport({ scale: scale2 });
+                        const canvas2 = document.createElement('canvas');
+                        const context2 = canvas2.getContext('2d');
+                        canvas2.height = viewport2.height;
+                        canvas2.width = viewport2.width;
+
+                        await page.render({
+                            canvasContext: context2,
+                            viewport: viewport2
+                        }).promise;
+
+                        const cropHeight2 = Math.floor(canvas2.height * 0.3);
+                        const croppedCanvas2 = document.createElement('canvas');
+                        croppedCanvas2.width = canvas2.width;
+                        croppedCanvas2.height = cropHeight2;
+                        const croppedContext2 = croppedCanvas2.getContext('2d');
+                        croppedContext2.drawImage(canvas2, 0, 0);
+
+                        // Enhance contrast
+                        const imageData = croppedContext2.getImageData(0, 0, croppedCanvas2.width, croppedCanvas2.height);
+                        const data = imageData.data;
+                        for (let i = 0; i < data.length; i += 4) {
+                            // Convert to grayscale and increase contrast
+                            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                            const contrasted = avg > 128 ? 255 : 0;
+                            data[i] = data[i + 1] = data[i + 2] = contrasted;
+                        }
+                        croppedContext2.putImageData(imageData, 0, 0);
+
+                        const result2 = await Tesseract.recognize(
+                            croppedCanvas2,
+                            'hun',
+                            {
+                                logger: m => {
+                                    if (m.status === 'recognizing text') {
+                                        statusMessage.textContent = `OCR (retry): ${file.name} - ${Math.round(m.progress * 100)}%`;
+                                    }
+                                }
+                            }
+                        );
+
+                        extractedText = result2.data.text;
+                    }
+
+                    return extractedText;
                 }
             } catch (error) {
                 console.error('Error extracting text:', error);
