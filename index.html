@@ -506,6 +506,8 @@
                 
                 const textContent = await page.getTextContent();
                 
+                console.log('Text content items:', textContent.items.length);
+                
                 if (textContent.items.length > 0) {
                     const viewport = page.getViewport({ scale: 1.0 });
                     const pageHeight = viewport.height;
@@ -518,8 +520,8 @@
                         hasText: true
                     };
                 } else {
-                    // Scanned PDF - render preview
-                    const scale = 2.0;
+                    // Scanned PDF - render preview of full first page
+                    const scale = 1.5;
                     const viewport = page.getViewport({ scale });
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
@@ -531,14 +533,11 @@
                         viewport: viewport
                     }).promise;
 
-                    const cropHeight = Math.floor(canvas.height * 0.4);
-                    const croppedCanvas = document.createElement('canvas');
-                    croppedCanvas.width = canvas.width;
-                    croppedCanvas.height = cropHeight;
-                    const croppedContext = croppedCanvas.getContext('2d');
-                    croppedContext.drawImage(canvas, 0, 0);
+                    console.log('Canvas rendered, size:', canvas.width, 'x', canvas.height);
 
-                    const imageDataUrl = croppedCanvas.toDataURL('image/png');
+                    // Return full page image
+                    const imageDataUrl = canvas.toDataURL('image/png');
+                    console.log('Image data URL generated, length:', imageDataUrl.length);
 
                     return {
                         text: '',
@@ -618,6 +617,8 @@
             const fileItem = document.getElementById(`file-${index}`);
             fileItem.classList.add('manual');
             
+            console.log('showManualInput called with imageUrl:', imageUrl ? 'Image available' : 'No image');
+            
             let html = `
                 <div>
                     <strong>📄 ${selectedFiles[index].name}</strong><br>
@@ -626,7 +627,14 @@
             `;
             
             if (imageUrl) {
-                html += `<img src="${imageUrl}" class="preview-image" alt="PDF preview" onclick="showImageModal('${imageUrl}')" title="Click to enlarge">`;
+                console.log('Adding image to HTML, URL length:', imageUrl.length);
+                html += `<img src="${imageUrl}" class="preview-image" alt="PDF preview" onclick="showImageModal('${imageUrl}')" title="Click to enlarge" onerror="console.error('Image failed to load')">`;
+            } else {
+                console.log('No imageUrl provided');
+                html += `<div style="padding: 20px; background: #f0f0f0; text-align: center; margin: 10px 0; border-radius: 5px;">
+                    <p>⚠️ Could not generate preview image</p>
+                    <small>Please refer to the original PDF to find the case number</small>
+                </div>`;
             }
             
             html += `
