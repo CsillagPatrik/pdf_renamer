@@ -331,6 +331,13 @@
                 <strong>Preview:</strong> <span id="previewText">NCBB062B_D9X_0_ E22753062 .pdf</span><br>
                 <small style="color: #666;">Original name (unchanged) + space + extracted case number + space + extension</small>
             </div>
+
+            <div class="setting-group">
+                <label>
+                    <input type="checkbox" id="debugMode" style="width: auto; display: inline;">
+                    Show extracted text (debug mode)
+                </label>
+            </div>
         </div>
 
         <div class="upload-area" id="uploadArea">
@@ -483,17 +490,79 @@
             const searchText = document.getElementById('searchText').value;
             const pattern = document.querySelector('input[name="pattern"]:checked').value;
 
-            const searchIndex = text.indexOf(searchText);
-            if (searchIndex === -1) return null;
+            // Normalize text for better matching (handle OCR errors with Hungarian characters)
+            let normalizedText = text;
+            
+            // Try multiple variations of the search text for OCR errors
+            const searchVariations = [
+                searchText,
+                searchText.replace('ü', 'ü').replace('á', 'á'), // already normalized
+                'Ügyiratszám:',
+                'Ugyiratszam:',
+                'Ügłiľatszam:', // OCR common error
+                'Ügyiratszam',
+                'Ugyiratszám'
+            ];
 
-            const afterLabel = text.substring(searchIndex + searchText.length).trim();
+            let searchIndex = -1;
+            let foundVariation = null;
+            
+            for (const variation of searchVariations) {
+                searchIndex = normalizedText.indexOf(variation);
+                if (searchIndex !== -1) {
+                    foundVariation = variation;
+                    break;
+                }
+            }
+
+            if (searchIndex === -1) {
+                // Try case-insensitive search as last resort
+                const lowerText = normalizedText.toLowerCase();
+                const lowerSearch = searchText.toLowerCase();
+                searchIndex = lowerText.indexOf(lowerSearch);
+                if (searchIndex !== -1) {
+                    foundVariation = searchText;
+                } else {
+                    return null;
+                }
+            }
+
+            const afterLabel = normalizedText.substring(searchIndex + (foundVariation ? foundVariation.length : searchText.length));
+            
+            // Split by newlines and get the next non-empty line
+            const lines = afterLabel.split(/[\n\r]+/);
+            let caseNumberLine = '';
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.length > 0) {
+                    caseNumberLine = trimmed;
+                    break;
+                }
+            }
+
+            if (!caseNumberLine) return null;
 
             if (pattern === 'capital') {
-                const match = afterLabel.match(/^([A-Z]\d+(?:\/\d+)?)/);
-                return match ? match[1] : null;
+                // Clean up common OCR errors
+                let cleaned = caseNumberLine
+                    .replace(/[łĺľ]/g, '') // Remove OCR artifacts
+                    .replace(/\s+/g, '') // Remove spaces
+                    .replace(/[oO]/g, '0') // Replace O with 0 (common OCR error)
+                    .replace(/[|!]/g, '1') // Replace | or ! with 1
+                    .trim();
+                
+                // Match pattern: Capital letter followed by numbers, optionally with / and more numbers
+                const match = cleaned.match(/^([A-Z]\d+(?:\/\d+)?)/);
+                if (match) {
+                    return match[1];
+                }
+                
+                // Try to extract any capital letter + number combination
+                const fallbackMatch = cleaned.match(/([A-Z]+\d+)/);
+                return fallbackMatch ? fallbackMatch[1] : null;
             } else {
-                const match = afterLabel.match(/^([^\n]+)/);
-                return match ? match[1].trim() : null;
+                return caseNumberLine.trim();
             }
         }
 
@@ -520,6 +589,13 @@
                 try {
                     statusMessage.textContent = `Processing ${file.name}...`;
                     const text = await extractTextFromPDF(file);
+                    
+                    // Debug mode - show extracted text
+                    if (document.getElementById('debugMode').checked) {
+                        console.log('Extracted text from', file.name, ':', text);
+                        alert(`Extracted text from ${file.name}:\n\n${text.substring(0, 500)}...`);
+                    }
+                    
                     const caseNumber = extractCaseNumber(text);
 
                     if (caseNumber) {
