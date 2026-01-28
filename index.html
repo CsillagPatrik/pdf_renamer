@@ -349,6 +349,11 @@
 
         <div class="file-list" id="fileList"></div>
 
+        <div id="debugOutput" style="display: none; background: #f0f0f0; padding: 15px; margin: 20px 0; border-radius: 8px; max-height: 300px; overflow-y: auto;">
+            <h3>Debug Output:</h3>
+            <textarea id="debugText" style="width: 100%; height: 200px; font-family: monospace; font-size: 12px; padding: 10px;" readonly></textarea>
+        </div>
+
         <div class="progress-container" id="progressContainer">
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill">0%</div>
@@ -372,6 +377,16 @@
 
         let selectedFiles = [];
         let processedFiles = [];
+        let debugLog = [];
+
+        function addDebugLog(message) {
+            debugLog.push(message);
+            const debugText = document.getElementById('debugText');
+            if (debugText) {
+                debugText.value = debugLog.join('\n');
+                debugText.scrollTop = debugText.scrollHeight;
+            }
+        }
 
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -487,8 +502,14 @@
         }
 
         function extractCaseNumber(text) {
+            const debugMode = document.getElementById('debugMode').checked;
             const searchText = document.getElementById('searchText').value;
             const pattern = document.querySelector('input[name="pattern"]:checked').value;
+
+            if (debugMode) {
+                addDebugLog('=== Starting extraction ===');
+                addDebugLog('Search text: ' + searchText);
+            }
 
             // Normalize text for better matching (handle OCR errors with Hungarian characters)
             let normalizedText = text;
@@ -522,12 +543,24 @@
                 searchIndex = lowerText.indexOf(lowerSearch);
                 if (searchIndex !== -1) {
                     foundVariation = searchText;
+                    if (debugMode) addDebugLog('Found via case-insensitive search');
                 } else {
+                    if (debugMode) {
+                        addDebugLog('Search text NOT found!');
+                        addDebugLog('First 500 chars of extracted text:');
+                        addDebugLog(normalizedText.substring(0, 500));
+                    }
                     return null;
                 }
+            } else {
+                if (debugMode) addDebugLog('Found search variation: ' + foundVariation);
             }
 
             const afterLabel = normalizedText.substring(searchIndex + (foundVariation ? foundVariation.length : searchText.length));
+            if (debugMode) {
+                addDebugLog('Text after label (first 200 chars):');
+                addDebugLog(afterLabel.substring(0, 200));
+            }
             
             // Split by newlines and get the next non-empty line
             const lines = afterLabel.split(/[\n\r]+/);
@@ -543,24 +576,34 @@
 
             if (!caseNumberLine) return null;
 
+            if (debugMode) addDebugLog('Case number line found: ' + caseNumberLine);
+
             if (pattern === 'capital') {
-                // Clean up common OCR errors
+                // Clean up common OCR errors - more aggressive cleaning
                 let cleaned = caseNumberLine
-                    .replace(/[łĺľ]/g, '') // Remove OCR artifacts
-                    .replace(/\s+/g, '') // Remove spaces
-                    .replace(/[oO]/g, '0') // Replace O with 0 (common OCR error)
-                    .replace(/[|!]/g, '1') // Replace | or ! with 1
-                    .trim();
+                    .replace(/[łĺľ]/gi, '') // Remove OCR artifacts (case insensitive)
+                    .replace(/[àáâãäåāăąǻ]/gi, 'a') // Normalize accented a
+                    .replace(/[èéêëēĕėęě]/gi, 'e') // Normalize accented e
+                    .replace(/[ìíîïĩīĭįı]/gi, 'i') // Normalize accented i
+                    .replace(/[òóôõöōŏőǿ]/gi, 'o') // Normalize accented o
+                    .replace(/[ùúûüũūŭůűų]/gi, 'u') // Normalize accented u
+                    .replace(/[^A-Z0-9\/]/gi, '') // Remove everything except letters, numbers, and /
+                    .toUpperCase(); // Ensure uppercase
                 
-                // Match pattern: Capital letter followed by numbers, optionally with / and more numbers
-                const match = cleaned.match(/^([A-Z]\d+(?:\/\d+)?)/);
+                // Now replace O with 0 after other cleaning
+                cleaned = cleaned.replace(/O/g, '0');
+                
+                if (debugMode) addDebugLog('Cleaned: ' + cleaned);
+                
+                // Match pattern: Capital letter(s) followed by numbers, optionally with / and more numbers
+                const match = cleaned.match(/([A-Z]+\d+(?:\/\d+)?)/);
                 if (match) {
+                    if (debugMode) addDebugLog('✓ MATCHED case number: ' + match[1]);
                     return match[1];
                 }
                 
-                // Try to extract any capital letter + number combination
-                const fallbackMatch = cleaned.match(/([A-Z]+\d+)/);
-                return fallbackMatch ? fallbackMatch[1] : null;
+                if (debugMode) addDebugLog('✗ No match found');
+                return null;
             } else {
                 return caseNumberLine.trim();
             }
@@ -580,6 +623,15 @@
             processBtn.disabled = true;
             progressContainer.style.display = 'block';
             processedFiles = [];
+            debugLog = [];
+            
+            const debugMode = document.getElementById('debugMode').checked;
+            const debugOutput = document.getElementById('debugOutput');
+            if (debugMode) {
+                debugOutput.style.display = 'block';
+            } else {
+                debugOutput.style.display = 'none';
+            }
 
             for (let i = 0; i < selectedFiles.length; i++) {
                 const file = selectedFiles[i];
@@ -590,10 +642,11 @@
                     statusMessage.textContent = `Processing ${file.name}...`;
                     const text = await extractTextFromPDF(file);
                     
-                    // Debug mode - show extracted text
+                    // Debug mode - show extracted text in text area
                     if (document.getElementById('debugMode').checked) {
-                        console.log('Extracted text from', file.name, ':', text);
-                        alert(`Extracted text from ${file.name}:\n\n${text.substring(0, 500)}...`);
+                        addDebugLog('\n========================================');
+                        addDebugLog('FILE: ' + file.name);
+                        addDebugLog('========================================');
                     }
                     
                     const caseNumber = extractCaseNumber(text);
