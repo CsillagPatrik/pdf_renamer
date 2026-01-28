@@ -21,7 +21,7 @@
         }
 
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             background: white;
             border-radius: 20px;
@@ -198,9 +198,6 @@
             margin: 10px 0;
             border-radius: 8px;
             border: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
 
         .file-item.processing {
@@ -213,6 +210,55 @@
 
         .file-item.error {
             background: #f8d7da;
+        }
+
+        .file-item.manual {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+        }
+
+        .manual-input {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .manual-input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .manual-input-row input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #667eea;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .manual-input-row button {
+            padding: 10px 25px;
+            margin: 0;
+            font-size: 1em;
+        }
+
+        .btn-skip {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            border: 2px solid #ddd;
+            margin: 10px 0;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .preview-image:hover {
+            border-color: #667eea;
         }
 
         .progress-container {
@@ -244,6 +290,7 @@
         .status-message {
             text-align: center;
             color: #666;
+            font-weight: 500;
         }
 
         footer {
@@ -253,28 +300,61 @@
             border-top: 1px solid #ddd;
             color: #666;
         }
+
+        .warning-box {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            cursor: pointer;
+        }
+
+        .image-modal img {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 95%;
+            max-height: 95%;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>📄 PDF Bulk Renamer</h1>
-            <p class="subtitle">Extract text from upper left corner & rename files automatically</p>
+            <p class="subtitle">Extract text from PDFs & rename files automatically</p>
         </header>
 
         <div class="privacy-notice">
             🔒 <strong>Secure & Private:</strong> All processing happens in your browser. Files never leave your computer.
         </div>
 
+        <div class="warning-box">
+            ⚠️ <strong>For scanned PDFs:</strong> Automatic text extraction may not work. You'll see a preview image and can manually enter the case number.
+        </div>
+
         <div class="settings">
             <h2>⚙️ Settings</h2>
             
             <div class="info-box">
-                💡 <strong>Hungarian Patent Office Documents:</strong> This tool extracts the case number (Ügyiratszám) and adds it to the filename with spaces around it for easy double-click selection. Original filename remains unchanged. Example: "NCBB062B_D9X_0_ E22753062 .pdf"
+                💡 <strong>Hungarian Patent Office Documents:</strong> Extracts Ügyiratszám and adds to filename. Example: "original_name P2500316 .pdf"
             </div>
 
             <div class="setting-group">
-                <label for="searchText">Search for Text Label</label>
+                <label for="searchText">Search for Text Label (for digital PDFs)</label>
                 <input type="text" id="searchText" value="Ügyiratszám:" placeholder="Enter text to search for">
             </div>
 
@@ -283,16 +363,13 @@
                 <div class="radio-group">
                     <div class="radio-option">
                         <input type="radio" id="patternCapital" name="pattern" value="capital" checked>
-                        <label for="patternCapital">Capital letter followed by numbers (stops at / or space)</label>
+                        <label for="patternCapital">Capital letter + numbers (e.g., P2500316)</label>
                     </div>
                     <div class="radio-option">
                         <input type="radio" id="patternAll" name="pattern" value="all">
                         <label for="patternAll">All text after label</label>
                     </div>
                 </div>
-                <small style="color: #666; display: block; margin-top: 8px;">
-                    <strong>Current:</strong> Capital letter followed by numbers (stops at / or space)
-                </small>
             </div>
 
             <div class="setting-group">
@@ -328,15 +405,8 @@
             </div>
 
             <div class="preview">
-                <strong>Preview:</strong> <span id="previewText">NCBB062B_D9X_0_ E22753062 .pdf</span><br>
-                <small style="color: #666;">Original name (unchanged) + space + extracted case number + space + extension</small>
-            </div>
-
-            <div class="setting-group">
-                <label>
-                    <input type="checkbox" id="debugMode" style="width: auto; display: inline;">
-                    Show extracted text (debug mode)
-                </label>
+                <strong>Preview:</strong> <span id="previewText">original_name P2500316 .pdf</span><br>
+                <small style="color: #666;">Original name + separator + case number + separator + extension</small>
             </div>
         </div>
 
@@ -348,11 +418,6 @@
         </div>
 
         <div class="file-list" id="fileList"></div>
-
-        <div id="debugOutput" style="display: none; background: #f0f0f0; padding: 15px; margin: 20px 0; border-radius: 8px; max-height: 300px; overflow-y: auto;">
-            <h3>Debug Output:</h3>
-            <textarea id="debugText" style="width: 100%; height: 200px; font-family: monospace; font-size: 12px; padding: 10px;" readonly></textarea>
-        </div>
 
         <div class="progress-container" id="progressContainer">
             <div class="progress-bar">
@@ -369,24 +434,18 @@
         </footer>
     </div>
 
+    <div id="imageModal" class="image-modal" onclick="this.style.display='none'">
+        <img id="modalImage" src="" alt="PDF Preview">
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.0/dist/tesseract.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
         let selectedFiles = [];
         let processedFiles = [];
-        let debugLog = [];
-
-        function addDebugLog(message) {
-            debugLog.push(message);
-            const debugText = document.getElementById('debugText');
-            if (debugText) {
-                debugText.value = debugLog.join('\n');
-                debugText.scrollTop = debugText.scrollHeight;
-            }
-        }
+        let fileResults = {};
 
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -397,7 +456,6 @@
         const progressFill = document.getElementById('progressFill');
         const statusMessage = document.getElementById('statusMessage');
 
-        // Upload area interactions
         uploadArea.addEventListener('click', () => fileInput.click());
         
         uploadArea.addEventListener('dragover', (e) => {
@@ -422,6 +480,7 @@
 
         function handleFiles(files) {
             selectedFiles = files;
+            fileResults = {};
             displayFileList();
             processBtn.disabled = files.length === 0;
             downloadBtn.style.display = 'none';
@@ -430,9 +489,10 @@
 
         function displayFileList() {
             fileList.innerHTML = '';
-            selectedFiles.forEach(file => {
+            selectedFiles.forEach((file, index) => {
                 const div = document.createElement('div');
                 div.className = 'file-item';
+                div.id = `file-${index}`;
                 div.innerHTML = `<span>📄 ${file.name}</span><span>${(file.size / 1024).toFixed(2)} KB</span>`;
                 fileList.appendChild(div);
             });
@@ -444,22 +504,21 @@
                 const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                 const page = await pdf.getPage(1);
                 
-                // First try to extract text normally
                 const textContent = await page.getTextContent();
                 
                 if (textContent.items.length > 0) {
-                    // PDF has text layer - use normal extraction
                     const viewport = page.getViewport({ scale: 1.0 });
                     const pageHeight = viewport.height;
                     const upperLeftItems = textContent.items.filter(item => {
-                        return item.transform[5] > pageHeight * 0.7;
+                        return item.transform[5] > pageHeight * 0.6;
                     });
                     
-                    return upperLeftItems.map(item => item.str).join(' ');
+                    return {
+                        text: upperLeftItems.map(item => item.str).join(' '),
+                        hasText: true
+                    };
                 } else {
-                    // PDF is scanned - use OCR
-                    statusMessage.textContent = `Running OCR on ${file.name}...`;
-                    
+                    // Scanned PDF - render preview
                     const scale = 2.0;
                     const viewport = page.getViewport({ scale });
                     const canvas = document.createElement('canvas');
@@ -472,154 +531,53 @@
                         viewport: viewport
                     }).promise;
 
-                    // Crop to upper left corner (top 30% of page)
-                    const cropHeight = Math.floor(canvas.height * 0.3);
+                    const cropHeight = Math.floor(canvas.height * 0.4);
                     const croppedCanvas = document.createElement('canvas');
                     croppedCanvas.width = canvas.width;
                     croppedCanvas.height = cropHeight;
                     const croppedContext = croppedCanvas.getContext('2d');
                     croppedContext.drawImage(canvas, 0, 0);
 
-                    // Run OCR with better configuration
-                    const result = await Tesseract.recognize(
-                        croppedCanvas,
-                        'hun+eng',
-                        {
-                            logger: m => {
-                                if (m.status === 'recognizing text') {
-                                    statusMessage.textContent = `OCR: ${file.name} - ${Math.round(m.progress * 100)}%`;
-                                }
-                            },
-                            // Better OCR settings
-                            tessedit_pageseg_mode: Tesseract.PSM.AUTO,
-                            preserve_interword_spaces: '1',
-                        }
-                    );
+                    const imageDataUrl = croppedCanvas.toDataURL('image/png');
 
-                    // Get text and ensure proper encoding
-                    let extractedText = result.data.text;
-                    
-                    // Check if we got weird encoding (UTF-16 as UTF-8)
-                    if (extractedText.includes('昀') || extractedText.includes('圀') || extractedText.includes('匀')) {
-                        // Text was incorrectly encoded - try to fix it or re-process
-                        statusMessage.textContent = `Retrying OCR with different settings...`;
-                        
-                        // Try with a higher quality render
-                        const scale2 = 3.0;
-                        const viewport2 = page.getViewport({ scale: scale2 });
-                        const canvas2 = document.createElement('canvas');
-                        const context2 = canvas2.getContext('2d');
-                        canvas2.height = viewport2.height;
-                        canvas2.width = viewport2.width;
-
-                        await page.render({
-                            canvasContext: context2,
-                            viewport: viewport2
-                        }).promise;
-
-                        const cropHeight2 = Math.floor(canvas2.height * 0.3);
-                        const croppedCanvas2 = document.createElement('canvas');
-                        croppedCanvas2.width = canvas2.width;
-                        croppedCanvas2.height = cropHeight2;
-                        const croppedContext2 = croppedCanvas2.getContext('2d');
-                        croppedContext2.drawImage(canvas2, 0, 0);
-
-                        // Enhance contrast
-                        const imageData = croppedContext2.getImageData(0, 0, croppedCanvas2.width, croppedCanvas2.height);
-                        const data = imageData.data;
-                        for (let i = 0; i < data.length; i += 4) {
-                            // Convert to grayscale and increase contrast
-                            const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                            const contrasted = avg > 128 ? 255 : 0;
-                            data[i] = data[i + 1] = data[i + 2] = contrasted;
-                        }
-                        croppedContext2.putImageData(imageData, 0, 0);
-
-                        const result2 = await Tesseract.recognize(
-                            croppedCanvas2,
-                            'hun',
-                            {
-                                logger: m => {
-                                    if (m.status === 'recognizing text') {
-                                        statusMessage.textContent = `OCR (retry): ${file.name} - ${Math.round(m.progress * 100)}%`;
-                                    }
-                                }
-                            }
-                        );
-
-                        extractedText = result2.data.text;
-                    }
-
-                    return extractedText;
+                    return {
+                        text: '',
+                        hasText: false,
+                        imageUrl: imageDataUrl
+                    };
                 }
             } catch (error) {
-                console.error('Error extracting text:', error);
+                console.error('Error:', error);
                 throw error;
             }
         }
 
         function extractCaseNumber(text) {
-            const debugMode = document.getElementById('debugMode').checked;
             const searchText = document.getElementById('searchText').value;
             const pattern = document.querySelector('input[name="pattern"]:checked').value;
 
-            if (debugMode) {
-                addDebugLog('=== Starting extraction ===');
-                addDebugLog('Search text: ' + searchText);
-            }
-
-            // Normalize text for better matching (handle OCR errors with Hungarian characters)
-            let normalizedText = text;
-            
-            // Try multiple variations of the search text for OCR errors
             const searchVariations = [
                 searchText,
-                searchText.replace('ü', 'ü').replace('á', 'á'), // already normalized
                 'Ügyiratszám:',
                 'Ugyiratszam:',
-                'Ügłiľatszam:', // OCR common error
                 'Ügyiratszam',
-                'Ugyiratszám'
             ];
 
             let searchIndex = -1;
-            let foundVariation = null;
             
             for (const variation of searchVariations) {
-                searchIndex = normalizedText.indexOf(variation);
-                if (searchIndex !== -1) {
-                    foundVariation = variation;
-                    break;
-                }
+                searchIndex = text.indexOf(variation);
+                if (searchIndex !== -1) break;
+                
+                const lowerText = text.toLowerCase();
+                const lowerVariation = variation.toLowerCase();
+                searchIndex = lowerText.indexOf(lowerVariation);
+                if (searchIndex !== -1) break;
             }
 
-            if (searchIndex === -1) {
-                // Try case-insensitive search as last resort
-                const lowerText = normalizedText.toLowerCase();
-                const lowerSearch = searchText.toLowerCase();
-                searchIndex = lowerText.indexOf(lowerSearch);
-                if (searchIndex !== -1) {
-                    foundVariation = searchText;
-                    if (debugMode) addDebugLog('Found via case-insensitive search');
-                } else {
-                    if (debugMode) {
-                        addDebugLog('Search text NOT found!');
-                        addDebugLog('First 500 chars of extracted text:');
-                        addDebugLog(normalizedText.substring(0, 500));
-                    }
-                    return null;
-                }
-            } else {
-                if (debugMode) addDebugLog('Found search variation: ' + foundVariation);
-            }
+            if (searchIndex === -1) return null;
 
-            const afterLabel = normalizedText.substring(searchIndex + (foundVariation ? foundVariation.length : searchText.length));
-            if (debugMode) {
-                addDebugLog('Text after label (first 200 chars):');
-                addDebugLog(afterLabel.substring(0, 200));
-            }
-            
-            // Split by newlines and get the next non-empty line
+            const afterLabel = text.substring(searchIndex + searchText.length);
             const lines = afterLabel.split(/[\n\r]+/);
             let caseNumberLine = '';
             
@@ -633,34 +591,14 @@
 
             if (!caseNumberLine) return null;
 
-            if (debugMode) addDebugLog('Case number line found: ' + caseNumberLine);
-
             if (pattern === 'capital') {
-                // Clean up common OCR errors - more aggressive cleaning
                 let cleaned = caseNumberLine
-                    .replace(/[łĺľ]/gi, '') // Remove OCR artifacts (case insensitive)
-                    .replace(/[àáâãäåāăąǻ]/gi, 'a') // Normalize accented a
-                    .replace(/[èéêëēĕėęě]/gi, 'e') // Normalize accented e
-                    .replace(/[ìíîïĩīĭįı]/gi, 'i') // Normalize accented i
-                    .replace(/[òóôõöōŏőǿ]/gi, 'o') // Normalize accented o
-                    .replace(/[ùúûüũūŭůűų]/gi, 'u') // Normalize accented u
-                    .replace(/[^A-Z0-9\/]/gi, '') // Remove everything except letters, numbers, and /
-                    .toUpperCase(); // Ensure uppercase
+                    .replace(/[^A-Z0-9\/\s]/gi, '')
+                    .replace(/\s+/g, '')
+                    .toUpperCase();
                 
-                // Now replace O with 0 after other cleaning
-                cleaned = cleaned.replace(/O/g, '0');
-                
-                if (debugMode) addDebugLog('Cleaned: ' + cleaned);
-                
-                // Match pattern: Capital letter(s) followed by numbers, optionally with / and more numbers
                 const match = cleaned.match(/([A-Z]+\d+(?:\/\d+)?)/);
-                if (match) {
-                    if (debugMode) addDebugLog('✓ MATCHED case number: ' + match[1]);
-                    return match[1];
-                }
-                
-                if (debugMode) addDebugLog('✗ No match found');
-                return null;
+                return match ? match[1] : null;
             } else {
                 return caseNumberLine.trim();
             }
@@ -676,53 +614,125 @@
             return `${baseName}${separator}${caseNumber}${separator}${extension}`;
         }
 
+        function showManualInput(index, imageUrl) {
+            const fileItem = document.getElementById(`file-${index}`);
+            fileItem.classList.add('manual');
+            
+            let html = `
+                <div>
+                    <strong>📄 ${selectedFiles[index].name}</strong><br>
+                    <small style="color: #666;">⚠️ Scanned PDF detected. Please enter the case number manually:</small>
+                </div>
+            `;
+            
+            if (imageUrl) {
+                html += `<img src="${imageUrl}" class="preview-image" alt="PDF preview" onclick="showImageModal('${imageUrl}')" title="Click to enlarge">`;
+            }
+            
+            html += `
+                <div class="manual-input">
+                    <div class="manual-input-row">
+                        <input type="text" id="manual-${index}" placeholder="Enter case number (e.g., P2500316)" autofocus>
+                        <button onclick="applyManualInput(${index})">✓ Apply</button>
+                        <button onclick="skipFile(${index})" class="btn-skip">⊗ Skip</button>
+                    </div>
+                </div>
+            `;
+            
+            fileItem.innerHTML = html;
+            
+            // Focus the input
+            setTimeout(() => {
+                const input = document.getElementById(`manual-${index}`);
+                if (input) input.focus();
+            }, 100);
+        }
+
+        window.showImageModal = function(imageUrl) {
+            document.getElementById('modalImage').src = imageUrl;
+            document.getElementById('imageModal').style.display = 'block';
+        };
+
+        window.applyManualInput = function(index) {
+            const input = document.getElementById(`manual-${index}`);
+            const caseNumber = input.value.trim();
+            
+            if (!caseNumber) {
+                alert('Please enter a case number');
+                input.focus();
+                return;
+            }
+            
+            const file = selectedFiles[index];
+            const newFilename = generateNewFilename(file.name, caseNumber);
+            fileResults[index] = { file, newFilename, manual: true };
+            
+            const fileItem = document.getElementById(`file-${index}`);
+            fileItem.classList.remove('manual');
+            fileItem.classList.add('success');
+            fileItem.innerHTML = `<span>✓ ${file.name}</span><span>→ ${newFilename}</span>`;
+            
+            checkAllProcessed();
+        };
+
+        window.skipFile = function(index) {
+            const fileItem = document.getElementById(`file-${index}`);
+            fileItem.classList.remove('manual');
+            fileItem.classList.add('error');
+            fileItem.innerHTML = `<span>⊗ ${selectedFiles[index].name}</span><span>Skipped</span>`;
+            
+            checkAllProcessed();
+        };
+
+        function checkAllProcessed() {
+            const manualItems = document.querySelectorAll('.file-item.manual');
+            if (manualItems.length === 0) {
+                processedFiles = Object.values(fileResults);
+                if (processedFiles.length > 0) {
+                    downloadBtn.style.display = 'block';
+                    statusMessage.textContent = `✓ Ready to download ${processedFiles.length} file(s)`;
+                } else {
+                    statusMessage.textContent = `All files processed (${processedFiles.length} successful)`;
+                }
+            }
+        }
+
         processBtn.addEventListener('click', async () => {
             processBtn.disabled = true;
             progressContainer.style.display = 'block';
             processedFiles = [];
-            debugLog = [];
-            
-            const debugMode = document.getElementById('debugMode').checked;
-            const debugOutput = document.getElementById('debugOutput');
-            if (debugMode) {
-                debugOutput.style.display = 'block';
-            } else {
-                debugOutput.style.display = 'none';
-            }
+            fileResults = {};
 
             for (let i = 0; i < selectedFiles.length; i++) {
                 const file = selectedFiles[i];
-                const fileItems = fileList.querySelectorAll('.file-item');
-                fileItems[i].classList.add('processing');
+                const fileItem = document.getElementById(`file-${i}`);
+                fileItem.classList.add('processing');
 
                 try {
                     statusMessage.textContent = `Processing ${file.name}...`;
-                    const text = await extractTextFromPDF(file);
+                    const result = await extractTextFromPDF(file);
                     
-                    // Debug mode - show extracted text in text area
-                    if (document.getElementById('debugMode').checked) {
-                        addDebugLog('\n========================================');
-                        addDebugLog('FILE: ' + file.name);
-                        addDebugLog('========================================');
-                    }
-                    
-                    const caseNumber = extractCaseNumber(text);
-
-                    if (caseNumber) {
-                        const newFilename = generateNewFilename(file.name, caseNumber);
-                        processedFiles.push({ file, newFilename });
-                        fileItems[i].classList.remove('processing');
-                        fileItems[i].classList.add('success');
-                        fileItems[i].innerHTML = `<span>✓ ${file.name}</span><span>→ ${newFilename}</span>`;
+                    if (result.hasText) {
+                        const caseNumber = extractCaseNumber(result.text);
+                        
+                        if (caseNumber) {
+                            const newFilename = generateNewFilename(file.name, caseNumber);
+                            fileResults[i] = { file, newFilename };
+                            fileItem.classList.remove('processing');
+                            fileItem.classList.add('success');
+                            fileItem.innerHTML = `<span>✓ ${file.name}</span><span>→ ${newFilename}</span>`;
+                        } else {
+                            fileItem.classList.remove('processing');
+                            showManualInput(i, null);
+                        }
                     } else {
-                        fileItems[i].classList.remove('processing');
-                        fileItems[i].classList.add('error');
-                        fileItems[i].innerHTML = `<span>✗ ${file.name}</span><span>Case number not found</span>`;
+                        fileItem.classList.remove('processing');
+                        showManualInput(i, result.imageUrl);
                     }
                 } catch (error) {
-                    fileItems[i].classList.remove('processing');
-                    fileItems[i].classList.add('error');
-                    fileItems[i].innerHTML = `<span>✗ ${file.name}</span><span>Error: ${error.message}</span>`;
+                    fileItem.classList.remove('processing');
+                    fileItem.classList.add('error');
+                    fileItem.innerHTML = `<span>✗ ${file.name}</span><span>Error: ${error.message}</span>`;
                 }
 
                 const progress = ((i + 1) / selectedFiles.length) * 100;
@@ -730,12 +740,7 @@
                 progressFill.textContent = Math.round(progress) + '%';
             }
 
-            statusMessage.textContent = `Processed ${processedFiles.length} of ${selectedFiles.length} files`;
-            
-            if (processedFiles.length > 0) {
-                downloadBtn.style.display = 'block';
-            }
-            
+            checkAllProcessed();
             processBtn.disabled = false;
         });
 
@@ -746,16 +751,23 @@
                 zip.file(newFilename, file);
             });
 
-            const blob = await zip.generateAsync({ type: 'blob' });
+            statusMessage.textContent = 'Creating ZIP file...';
+            const blob = await zip.generateAsync({ 
+                type: 'blob',
+                compression: "DEFLATE",
+                compressionOptions: { level: 6 }
+            });
+            
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = 'renamed_pdfs.zip';
             a.click();
             URL.revokeObjectURL(url);
+            
+            statusMessage.textContent = '✓ Download started!';
         });
 
-        // Update preview when settings change
         document.querySelectorAll('input[name="separator"], input[name="extension"]').forEach(input => {
             input.addEventListener('change', updatePreview);
         });
@@ -764,9 +776,8 @@
             const separator = document.querySelector('input[name="separator"]:checked').value;
             const keepExtension = document.querySelector('input[name="extension"]:checked').value === 'yes';
             const extension = keepExtension ? '.pdf' : '';
-            const sepDisplay = separator === ' ' ? 'space' : separator;
             document.getElementById('previewText').textContent = 
-                `NCBB062B_D9X_0_${separator}E22753062${separator}${extension}`;
+                `original_name${separator}P2500316${separator}${extension}`;
         }
     </script>
 </body>
